@@ -1,5 +1,16 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
-import { buildTasks, firstLetterPrompt, PRAISE, spoken, syllabify, VOWELS, type StageId, type Task } from './content'
+import {
+  buildTasks,
+  firstLetterPrompt,
+  mathAnswer,
+  mathPrompt,
+  PRAISE,
+  spoken,
+  syllabify,
+  VOWELS,
+  type StageId,
+  type Task,
+} from './content'
 import { saveStars } from './progress'
 import { say } from './speech'
 import { bad, good, win } from './sfx'
@@ -263,6 +274,53 @@ function Question({ t, onMistake, onSolved }: TaskProps<'question'>) {
   )
 }
 
+// Пример: на уровнях с предметами их можно пересчитать (при «−» убранные погашены).
+function Sum({ t, onMistake, onSolved }: TaskProps<'math'>) {
+  const [solved, setSolved] = useState(false)
+  const ask = () => say(mathPrompt(t.a, t.op, t.b))
+  useSayOnMount(ask)
+  const items = (count: number, gone = 0) =>
+    Array.from({ length: count }, (_, k) => (
+      <span key={k} className={k >= count - gone ? 'gone' : ''}>
+        {t.pic}
+      </span>
+    ))
+  return (
+    <>
+      {t.pic && (
+        <div className="objects">
+          {t.op === '+' ? (
+            <>
+              <span className="group">{items(t.a)}</span>
+              <span className="group">{items(t.b)}</span>
+            </>
+          ) : (
+            <span className="group">{items(t.a, t.b)}</span>
+          )}
+        </div>
+      )}
+      <button className="expr" onClick={ask}>
+        <span>{t.a}</span>
+        <span className="op">{t.op === '+' ? '+' : '−'}</span>
+        <span>{t.b}</span>
+        <span className="op">=</span>
+        <span className={'tile' + (solved ? ' pop' : '')}>{solved ? t.answer : '?'}</span>
+      </button>
+      <Choices
+        options={t.options}
+        answer={t.answer}
+        render={(o) => o}
+        onMistake={onMistake}
+        onSolved={onSolved}
+        onCorrect={() => {
+          setSolved(true)
+          say(mathAnswer(Number(t.answer)))
+        }}
+      />
+    </>
+  )
+}
+
 export function Play({ stage, level, onExit }: { stage: StageId; level: number; onExit: () => void }) {
   const [run, setRun] = useState(0)
   // run в зависимостях: «ещё раз» перемешивает задания заново
@@ -333,6 +391,7 @@ export function Play({ stage, level, onExit }: { stage: StageId; level: number; 
         {t.kind === 'phrase' && <ReadPhrase t={t} {...props} />}
         {t.kind === 'page' && <StoryPage t={t} {...props} />}
         {t.kind === 'question' && <Question t={t} {...props} />}
+        {t.kind === 'math' && <Sum t={t} {...props} />}
       </div>
     </div>
   )

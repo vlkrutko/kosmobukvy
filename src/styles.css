@@ -95,17 +95,21 @@ h2 {
 /* ── карта этапов ── */
 .planets {
   flex: 1;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
+  display: grid;
+  /* шесть этапов: один ряд в альбомной ориентации, два ряда по три в книжной */
+  grid-template-columns: repeat(6, 19vmin);
   align-content: center;
   justify-content: center;
-  gap: 3vmin;
+  gap: 4vmin 1.5vmin;
 }
 
-/* 5 × 22 + 4 × 3 = 122vmin: на iPad в альбомной ориентации все этапы в один ряд */
+@media (orientation: portrait) {
+  .planets {
+    grid-template-columns: repeat(3, 28vmin);
+  }
+}
+
 .planet {
-  width: 22vmin;
   padding: 2vmin 1vmin;
   background: none;
   display: flex;
@@ -115,7 +119,7 @@ h2 {
 }
 
 .planet-pic {
-  font-size: 14vmin;
+  font-size: 12.5vmin;
   line-height: 1.1;
 }
 
@@ -128,7 +132,7 @@ h2 {
 }
 
 .planet-title {
-  font-size: 5vmin;
+  font-size: 4.2vmin;
 }
 
 .planet-stars {
@@ -320,6 +324,44 @@ h2 {
 .question {
   background: none;
   font-size: 7vmin;
+}
+
+/* ── счёт ── */
+.objects {
+  display: flex;
+  gap: 6vmin;
+  font-size: 7.5vmin;
+  line-height: 1;
+}
+
+.group {
+  display: flex;
+  gap: 0.6vmin;
+}
+
+.gone {
+  opacity: 0.22;
+  filter: grayscale(1);
+}
+
+.expr {
+  background: none;
+  display: flex;
+  align-items: center;
+  gap: 3.5vmin;
+  font-size: 18vmin;
+  line-height: 1;
+}
+
+.expr .op {
+  opacity: 0.65;
+}
+
+.expr .tile {
+  min-width: 22vmin;
+  height: 22vmin;
+  font-size: 15vmin;
+  color: var(--accent);
 }
 
 .plus {

@@ -1,7 +1,7 @@
 // Учебный материал и сборка заданий. Чтобы добавить слово или уровень — правьте
 // списки ниже, код игр трогать не нужно.
 
-export type StageId = 'sounds' | 'syllables' | 'words' | 'phrases' | 'stories'
+export type StageId = 'sounds' | 'syllables' | 'words' | 'phrases' | 'stories' | 'math'
 
 export interface Stage {
   id: StageId
@@ -188,12 +188,47 @@ const STORIES: Story[] = [
   },
 ]
 
+// ── Этап 6: счёт (плюс и минус в пределах 10) ────────────────────────────────
+export type Op = '+' | '-'
+
+// whole — большее число примера: сумма для «+», уменьшаемое для «−».
+// visual — над примером нарисованы предметы, которые можно пересчитать.
+const MATH: { ops: Op[]; wholeMin: number; wholeMax: number; visual: boolean }[] = [
+  { ops: ['+'], wholeMin: 2, wholeMax: 5, visual: true },
+  { ops: ['-'], wholeMin: 1, wholeMax: 5, visual: true },
+  { ops: ['+'], wholeMin: 6, wholeMax: 10, visual: true },
+  { ops: ['-'], wholeMin: 6, wholeMax: 10, visual: true },
+  { ops: ['+', '-'], wholeMin: 2, wholeMax: 10, visual: false },
+]
+const MATH_MAX = 10
+const COUNTABLES = ['🚀', '⭐', '🪐', '🌙', '👽', '🛸']
+const NUMBER_WORDS = ['ноль', 'один', 'два', 'три', 'четыре', 'пять', 'шесть', 'семь', 'восемь', 'девять', 'десять']
+
+function mathExamples(level: number): { a: number; b: number; op: Op }[] {
+  const { ops, wholeMin, wholeMax } = MATH[level]
+  const out: { a: number; b: number; op: Op }[] = []
+  for (const op of ops) {
+    for (let whole = Math.max(wholeMin, op === '+' ? 2 : 1); whole <= wholeMax; whole++) {
+      // «+»: оба слагаемых не меньше 1; «−»: вычитаемое от 1 до всего числа (ответ 0 допустим)
+      const bMax = op === '+' ? whole - 1 : whole
+      for (let b = 1; b <= bMax; b++) out.push({ a: op === '+' ? whole - b : whole, b, op })
+    }
+  }
+  return out
+}
+
+export const mathPrompt = (a: number, op: Op, b: number) =>
+  `${NUMBER_WORDS[a]} ${op === '+' ? 'плюс' : 'минус'} ${NUMBER_WORDS[b]}`
+
+export const mathAnswer = (n: number) => `получится ${NUMBER_WORDS[n]}`
+
 export const STAGES: Stage[] = [
   { id: 'sounds', title: 'Звуки', pic: '🌙', levels: ['А О У И М Н Л Р', 'С К Т П Б Д Г В З', 'Ш Ж Х Ф Ц Ч Я Ё'] },
   { id: 'syllables', title: 'Слоги', pic: '🪐', levels: ['М Н Л Р', 'С К Т П', 'Б Д Г В З', 'Ш Ж Х Ф', 'Я Е Ё Ю'] },
   { id: 'words', title: 'Слова', pic: '🌍', levels: ['ЛУ-НА', 'РА-КЕ-ТА', 'КОС-МОС'] },
   { id: 'phrases', title: 'Фразы', pic: '☀️', levels: ['ВОТ ЛУНА', 'КОТ НА ЛУНЕ', 'РАКЕТА ЛЕТИТ НА ЛУНУ'] },
   { id: 'stories', title: 'Истории', pic: '🌌', levels: STORIES.map((s) => `${s.pic} ${s.title}`) },
+  { id: 'math', title: 'Счёт', pic: '🛸', levels: ['1 + 2', '5 − 2', '6 + 3', '9 − 4', '+ и −'] },
 ]
 
 /**
@@ -252,6 +287,8 @@ export function allUtterances(): string[] {
     s.pages.forEach((p) => addSentence(p.text))
     add(s.ask)
   })
+  MATH.forEach((_, level) => mathExamples(level).forEach((e) => add(mathPrompt(e.a, e.op, e.b))))
+  for (let n = 0; n <= MATH_MAX; n++) add(mathAnswer(n))
   add(PRAISE)
   return [...out]
 }
@@ -265,6 +302,7 @@ export type Task =
   | { kind: 'phrase'; words: string[]; answer: string; options: string[] }
   | { kind: 'page'; words: string[]; pic: string }
   | { kind: 'question'; text: string; answer: string; options: string[] }
+  | { kind: 'math'; a: number; b: number; op: Op; pic: string | null; answer: string; options: string[] }
 
 // занятие короткое: 8 заданий ≈ 5 минут
 const SESSION = 8
@@ -338,10 +376,30 @@ function storyTasks(level: number): Task[] {
   ]
 }
 
+function mathTasks(level: number): Task[] {
+  return shuffle(mathExamples(level))
+    .slice(0, SESSION)
+    .map(({ a, b, op }) => {
+      const result = op === '+' ? a + b : a - b
+      // неверные ответы — соседние числа: наугад по величине не отбросить
+      const near = [result - 2, result - 1, result + 1, result + 2].filter((x) => x >= 0 && x <= MATH_MAX)
+      return {
+        kind: 'math',
+        a,
+        b,
+        op,
+        pic: MATH[level].visual ? shuffle(COUNTABLES)[0] : null,
+        answer: String(result),
+        options: withDistractors(String(result), near.map(String)),
+      }
+    })
+}
+
 export function buildTasks(stage: StageId, level: number): Task[] {
   if (stage === 'sounds') return soundTasks(level)
   if (stage === 'syllables') return syllableTasks(level)
   if (stage === 'words') return wordTasks(level)
   if (stage === 'phrases') return phraseTasks(level)
+  if (stage === 'math') return mathTasks(level)
   return storyTasks(level)
 }
