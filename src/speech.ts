@@ -49,19 +49,43 @@ function synthSay(text: string, rate: number) {
   synth.speak(u)
 }
 
+// Ждём, пока iOS разбудит контекст (resume из жеста завершается не мгновенно).
+async function running(ac: AudioContext): Promise<boolean> {
+  if (ac.state === 'running') return true
+  await Promise.race([ac.resume().catch(() => undefined), new Promise((r) => setTimeout(r, 400))])
+  return (ac.state as string) === 'running'
+}
+
+// Запасной путь, если Web Audio так и не проснулся: медиа-элемент (на iOS он играет
+// и в беззвучном режиме), а если и ему не дали играть — синтезатор.
+let element: HTMLAudioElement | null = null
+
+function playElement(file: string, text: string, rate: number) {
+  element = new Audio(`audio/${file}`)
+  element.play().catch(() => synthSay(text, rate))
+}
+
 /** rate действует только на синтезатор: темп записей задан при их создании. */
 export function say(text: string, rate = 0.85) {
   const call = ++latest
   playing?.stop()
   playing = null
+  element?.pause()
+  element = null
   synth?.cancel()
 
   const file = files[text.toLowerCase()]
   const ac = audioContext()
-  if (!file || !ac) return synthSay(text, rate)
+  if (!file) return synthSay(text, rate)
+  if (!ac) return playElement(file, text, rate)
 
   load(ac, file)
-    .then((buffer) => {
+    .then(async (buffer) => {
+      if (call !== latest) return
+      if (!(await running(ac))) {
+        if (call === latest) playElement(file, text, rate)
+        return
+      }
       if (call !== latest) return
       const source = ac.createBufferSource()
       source.buffer = buffer

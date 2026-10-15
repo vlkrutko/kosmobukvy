@@ -1,12 +1,36 @@
 // Короткие звуки-отклики, синтезируются на лету — аудиофайлы не нужны.
 let ctx: AudioContext | null = null
 
-/** Общий аудиоконтекст (отклики и озвучка). iOS держит его приостановленным до первого касания. */
+// 15.10: на iPad звук мог молчать, хотя в Chrome все проверки проходили. У iOS три
+// отличия: (1) жестом для звука считается только отпускание пальца (touchend/click),
+// а не касание (pointerdown, на котором была разблокировка); (2) после блокировки экрана
+// контекст становится 'interrupted', а не 'suspended', — его не будили; (3) Web Audio
+// по умолчанию глушится беззвучным режимом, в отличие от прежнего синтезатора речи.
+type WithAudioSession = Navigator & { audioSession?: { type: string } }
+
+function playbackSession() {
+  // iOS 17+: звук как у плеера — играет и в беззвучном режиме
+  const session = (navigator as WithAudioSession).audioSession
+  if (session && session.type !== 'playback') session.type = 'playback'
+}
+
+/** Общий аудиоконтекст (отклики и озвучка). */
 export function audioContext(): AudioContext | null {
   if (typeof AudioContext === 'undefined') return null
+  playbackSession()
   ctx ??= new AudioContext()
-  if (ctx.state === 'suspended') void ctx.resume()
+  if (ctx.state !== 'running') void ctx.resume().catch(() => undefined)
   return ctx
+}
+
+/** Вызывать из жеста пользователя: будит контекст, а старым iOS ещё нужен звук внутри жеста. */
+export function unlockAudio() {
+  const ac = audioContext()
+  if (!ac || ac.state === 'running') return
+  const silence = ac.createBufferSource()
+  silence.buffer = ac.createBuffer(1, 1, 22050)
+  silence.connect(ac.destination)
+  silence.start()
 }
 
 function tone(freq: number, start: number, dur: number, type: OscillatorType = 'sine', vol = 0.15) {
